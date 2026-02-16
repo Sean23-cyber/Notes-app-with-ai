@@ -1,8 +1,8 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const noteSchema = new mongoose.Schema({
   text: { type: String, required: true },
   createdAt: { type: Date, default: Date.now },
 });
 
-export default mongoose.model("Note", noteSchema);
+module.exports = mongoose.model("Note", noteSchema);

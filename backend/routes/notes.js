@@ -10,14 +10,14 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 // ✅ Define Note Schema (MongoDB)
 const noteSchema = new mongoose.Schema({
   text: { type: String, required: true },
+  summary: { type: String }, // Optional: Store AI summary
   createdAt: { type: Date, default: Date.now },
 });
 
 const Note = mongoose.model("Note", noteSchema);
 
-// ==========================
+
 // ROUTES
-// ==========================
 
 // ➤ Get all notes
 router.get("/", async (req, res) => {
@@ -45,6 +45,25 @@ router.post("/", async (req, res) => {
   }
 });
 
+// ➤ Update a note
+router.put("/:id", async (req, res) => {
+  const { text } = req.body;
+  if (!text) return res.status(400).json({ error: "Text required" });
+
+  try {
+    const updated = await Note.findByIdAndUpdate(
+      req.params.id,
+      { text },
+      { new: true, runValidators: true }
+    );
+    if (!updated) return res.status(404).json({ error: "Note not found" });
+    res.json(updated);
+  } catch (err) {
+    console.error("Update error:", err);
+    res.status(500).json({ error: "Failed to update note" });
+  }
+});
+
 // ➤ Delete a note
 router.delete("/:id", async (req, res) => {
   try {
@@ -57,19 +76,24 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
-// ➤ Summarize a note (Gemini Integration)
-router.post("/summarize", async (req, res) => {
-  const { text } = req.body;
-  if (!text) return res.status(400).json({ error: "Text required" });
+// ➤ Summarize a note (Gemini Integration) - Updated to valid model
+router.post("/summarize/:id", async (req, res) => {
+  
+  const note = await Note.findById(req.params.id);
+  if (!note) return res.status(404).json({ error: "note not found" });
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }); // Updated to stable model
 
     const result = await model.generateContent(
-      `Summarize this note in 5 short bullet points:\n\n${text}`
+      `Summarize this note in 5 short bullet points in a list format:\n\n${note.text}`
     );
 
+
     const summary = result.response.text();
+
+    note.summary=summary;
+    await note.save();
     res.json({ summary });
   } catch (error) {
     console.error("Gemini error:", error);
